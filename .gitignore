@@ -1,0 +1,12 @@
+node_modules/
+.env
+dist/
+build/
+uploads/
+logs/
+*.log
+.DS_Store
+coverage/
+.nyc_output/
+prisma/migrations/dev.db
+*.sqlite
