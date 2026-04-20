@@ -32,23 +32,20 @@ app.use(helmet({
 }));
 
 // ── CORS ──────────────────────────────────────────────────────
-const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = env.FRONTEND_URL.split(',').map((u) => u.trim());
+const allowedOrigins = [
+  'https://mybusiness.avenirya.com',
+  'https://api.avenirya.com',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+      callback(null, origin); // ✅ IMPORTANT: return exact origin
     } else {
-      callback(new Error(`CORS: Origin ${origin} not allowed`));
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials:         true,
-  methods:             ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders:      ['Content-Type','Authorization','X-Requested-With'],
-  exposedHeaders:      ['X-Total-Count','X-Page','X-Limit'],
-  optionsSuccessStatus:200,
-};
-app.use(cors({
-  origin: '*',
   credentials: true
 }));
 app.options('*', cors(corsOptions));
