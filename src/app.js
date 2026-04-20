@@ -38,17 +38,19 @@ const allowedOrigins = [
   'http://localhost:3000'
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin); // ✅ IMPORTANT: return exact origin
+      callback(null, origin); // ✅ return exact origin
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
-}));
-app.options('*', cors(corsOptions));
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // ✅ NOW it works
 
 // ── Compression ────────────────────────────────────────────────
 app.use(compression());
