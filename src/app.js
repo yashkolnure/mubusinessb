@@ -47,7 +47,10 @@ const corsOptions = {
   exposedHeaders:      ['X-Total-Count','X-Page','X-Limit'],
   optionsSuccessStatus:200,
 };
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
 app.options('*', cors(corsOptions));
 
 // ── Compression ────────────────────────────────────────────────
