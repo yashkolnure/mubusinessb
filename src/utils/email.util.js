@@ -167,7 +167,7 @@ const emails = {
     return sendEmail({ to: email, subject: 'Password Reset Request — MyBusiness', html, businessId });
   },
 
-  async invoiceSent({ clientName, clientEmail, invoiceNumber, amount, dueDate, invoiceUrl, businessName, businessId }) {
+  async invoiceSent({ clientName, clientEmail, invoiceNumber, amount, dueDate, businessName, businessId, pdfBuffer, pdfFilename }) {
     const html = baseTemplate(`
       <div class="header">
         <h1>Invoice from ${businessName}</h1>
@@ -175,16 +175,32 @@ const emails = {
       </div>
       <div class="body">
         <p>Dear <strong>${clientName}</strong>,</p>
-        <p>Please find your invoice details below.</p>
+        <p>Please find your invoice attached to this email as a PDF.</p>
         <div class="info-box">
           <p><strong>Invoice #:</strong> ${invoiceNumber}</p>
           <p><strong>Amount Due:</strong> <span class="amount">${amount}</span></p>
           <p><strong>Due Date:</strong> ${dueDate}</p>
         </div>
-        <a href="${invoiceUrl}" class="btn">View Invoice Online</a>
-        <p style="font-size:13px;color:#666;">You can view, download and pay this invoice by clicking the button above.</p>
+        <p style="font-size:13px;color:#666;">
+          The invoice PDF is attached to this email. Please review and arrange payment by the due date.
+          For any queries, please reply to this email.
+        </p>
+        <table style="width:100%;border-top:2px solid #eee;margin-top:20px;padding-top:16px;">
+          <tr>
+            <td style="font-size:12px;color:#999;">
+              📎 <strong>${pdfFilename || invoiceNumber + '.pdf'}</strong> is attached to this email.
+            </td>
+          </tr>
+        </table>
       </div>`);
-    return sendEmail({ to: clientEmail, subject: `Invoice ${invoiceNumber} from ${businessName} — ${amount} due`, html, businessId });
+
+    const attachments = pdfBuffer ? [{
+      filename:    pdfFilename || `${invoiceNumber}.pdf`,
+      content:     pdfBuffer,
+      contentType: 'application/pdf',
+    }] : [];
+
+    return sendEmail({ to: clientEmail, subject: `Invoice ${invoiceNumber} from ${businessName} — ${amount} due`, html, attachments, businessId });
   },
 
   async invoiceOverdueReminder({ clientName, clientEmail, invoiceNumber, amount, daysOverdue, invoiceUrl, businessId }) {
@@ -207,7 +223,17 @@ const emails = {
     return sendEmail({ to: clientEmail, subject: `OVERDUE: Invoice ${invoiceNumber} — Payment Required`, html, businessId });
   },
 
-  async quotationSent({ clientName, clientEmail, quotationNumber, validUntil, quoteUrl, businessName, businessId }) {
+  async quotationSent({ clientName, clientEmail, quotationNumber, validUntil, businessName, currencySymbol = '₹', totalAmount, items = [], businessId }) {
+    // Build items table rows
+    const itemRows = items.map((it, i) => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">${i+1}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">${it.description}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;">${it.quantity} ${it.unit||''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;">${currencySymbol}${Number(it.unitPrice).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;">${currencySymbol}${Number(it.amount).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+      </tr>`).join('');
+
     const html = baseTemplate(`
       <div class="header">
         <h1>Quotation from ${businessName}</h1>
@@ -215,14 +241,35 @@ const emails = {
       </div>
       <div class="body">
         <p>Dear <strong>${clientName}</strong>,</p>
-        <p>Please review the quotation we've prepared for you.</p>
+        <p>Please find our quotation for your reference. This quotation is valid until <strong>${validUntil}</strong>.</p>
         <div class="info-box">
           <p><strong>Quotation #:</strong> ${quotationNumber}</p>
           <p><strong>Valid Until:</strong> ${validUntil}</p>
+          <p><strong>Total Amount:</strong> <span class="amount">${currencySymbol}${Number(totalAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></p>
         </div>
-        <a href="${quoteUrl}" class="btn">View Quotation</a>
+        ${items.length > 0 ? `
+        <h3 style="margin:20px 0 8px;font-size:14px;color:#444;">Items / Services</h3>
+        <table class="items">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th style="text-align:right;">Qty</th>
+              <th style="text-align:right;">Unit Price</th><th style="text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows}</tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="4" style="padding:10px 12px;text-align:right;font-weight:700;">Total</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;">${currencySymbol}${Number(totalAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+            </tr>
+          </tfoot>
+        </table>` : ''}
+        <p style="font-size:13px;color:#666;margin-top:20px;">
+          To accept this quotation or for any questions, please reply to this email.
+        </p>
       </div>`);
-    return sendEmail({ to: clientEmail, subject: `Quotation ${quotationNumber} from ${businessName}`, html, businessId });
+
+    return sendEmail({ to: clientEmail, subject: `Quotation ${quotationNumber} from ${businessName} — ${currencySymbol}${Number(totalAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}`, html, businessId });
   },
 
   async lowStockAlert({ adminEmail, products, businessId }) {

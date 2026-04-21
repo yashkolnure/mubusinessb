@@ -148,23 +148,36 @@ exports.updateInvoice = asyncHandler(async (req, res) => {
 
 exports.sendInvoice = asyncHandler(async (req, res) => {
   const invoice = await prisma.invoice.findFirst({
-    where: { id: req.params.id, businessId: req.businessId },
-    include: { client: true, items: { orderBy: { sortOrder: 'asc' } } },
+    where:   { id: req.params.id, businessId: req.businessId },
+    include: { client: true, items: { orderBy: { sortOrder: 'asc' } }, payments: true },
   });
   if (!invoice) return errorResponse(res, { status: HTTP.NOT_FOUND, message: 'Invoice not found.' });
   if (invoice.status === 'CANCELLED') return errorResponse(res, { status: HTTP.BAD_REQUEST, message: 'Cannot send a cancelled invoice.' });
   if (!invoice.client.email) return errorResponse(res, { status: HTTP.BAD_REQUEST, message: 'Client has no email address.' });
 
   const business = await prisma.business.findUnique({ where: { id: req.businessId } });
+
+  // ── Generate PDF buffer and attach to email ──────────────────────────────
+  const pdfBuffer = await new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = generateInvoicePDF(invoice, business);
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.end();
+  });
+
   await emails.invoiceSent({
     clientName:    invoice.client.name,
     clientEmail:   invoice.client.email,
     invoiceNumber: invoice.invoiceNumber,
     amount:        `${business.currencySymbol}${invoice.balanceAmount.toFixed(2)}`,
     dueDate:       invoice.dueDate ? invoice.dueDate.toDateString() : 'No due date',
-    invoiceUrl:    `${process.env.FRONTEND_URL}/invoices/${invoice.id}`,
     businessName:  business.name,
     businessId:    req.businessId,
+    // PDF attached — no login link needed
+    pdfBuffer,
+    pdfFilename:   `${invoice.invoiceNumber}.pdf`,
   });
 
   await prisma.invoice.update({ where: { id: req.params.id }, data: { status: 'SENT', sentAt: new Date() } });

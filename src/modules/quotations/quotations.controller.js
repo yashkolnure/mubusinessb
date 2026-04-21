@@ -119,7 +119,24 @@ exports.sendQuotation = asyncHandler(async (req, res) => {
   if (!q) return errorResponse(res, { status: HTTP.NOT_FOUND, message: 'Quotation not found.' });
   if (!q.client.email) return errorResponse(res, { status: HTTP.BAD_REQUEST, message: 'Client has no email address.' });
   const business = await prisma.business.findUnique({ where: { id: req.businessId } });
-  await emails.quotationSent({ clientName: q.client.name, clientEmail: q.client.email, quotationNumber: q.quotationNumber, validUntil: q.validUntil ? q.validUntil.toDateString() : '–', quoteUrl: `${process.env.FRONTEND_URL}/quotations/${q.id}`, businessName: business.name, businessId: req.businessId });
+
+  // Load full quotation items for the email summary
+  const fullQ = await prisma.quotation.findUnique({
+    where: { id: q.id },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+  });
+
+  await emails.quotationSent({
+    clientName:      q.client.name,
+    clientEmail:     q.client.email,
+    quotationNumber: q.quotationNumber,
+    validUntil:      q.validUntil ? q.validUntil.toDateString() : 'Open',
+    businessName:    business.name,
+    currencySymbol:  business.currencySymbol || '₹',
+    totalAmount:     q.totalAmount,
+    items:           fullQ?.items || [],
+    businessId:      req.businessId,
+  });
   await prisma.quotation.update({ where: { id: req.params.id }, data: { status: 'SENT' } });
   return successResponse(res, { message: 'Quotation sent.' });
 });
